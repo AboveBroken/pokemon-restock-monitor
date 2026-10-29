@@ -156,7 +156,7 @@ async function notify(products) {
     );
 
     results.telegram = await sendTelegram(message);
-
+    results.discord = await sendDiscord(message);
     // Avoid sending a large burst of messages.
     await new Promise((resolve) =>
       setTimeout(resolve, 500)
@@ -177,9 +177,10 @@ async function notifyCritical(queueEvent) {
     "Sending Telegram Pokemon Center queue alert"
   );
 
-  return {
-    telegram: await sendTelegram(message),
-  };
+ return {
+  telegram: await sendTelegram(message),
+  discord: await sendDiscord(message),
+};
 }
 
 
@@ -187,4 +188,36 @@ module.exports = {
   notify,
   notifyCritical,
   sendTelegram,
+  sendDiscord,
 };
+async function sendDiscord(message) {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    console.log("Discord webhook not configured; skipping.");
+    return { sent: false, reason: "missing_webhook" };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content: message,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Discord notification failed:", response.status);
+      return { sent: false, status: response.status };
+    }
+
+    console.log("Discord notification sent successfully.");
+    return { sent: true };
+  } catch (error) {
+    console.error("Discord notification error:", error.message);
+    return { sent: false, error: error.message };
+  }
+}
